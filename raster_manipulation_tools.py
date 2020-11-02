@@ -46,7 +46,7 @@ def crop_tif(input_tif, input_shp_name):
 
 def reproject_tif(source_tif, tif_with_dest_projection):
     '''
-    Function for cropping an input tif to anoter tif with a different projection.
+    Function for cropping an input tif to another tif with a different projection.
 
     :param source_tif: Input tif filename to be reprojected.
     :param tif_with_dest_projection: Tif with the desired projection.

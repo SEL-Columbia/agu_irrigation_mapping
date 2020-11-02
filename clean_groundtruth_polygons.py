@@ -166,12 +166,6 @@ def load_evi_and_chirps_pixel_timeseries(poly_file, full_region, cropped_region)
 
     polys = gpd.read_file(poly_file).to_crs(evi_meta['crs'])
 
-    if poly_file == '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/sentinel_modis_testing/polygons/edwin_polys_32637.geojson':
-        irrig_polys, possible_irrig_polys, non_irrig_polys = load_edwin_polygons()
-
-        polys = non_irrig_polys
-
-
     polys = polys[(polys['geometry']).area/10000 > min_ha]
 
     n_polys_to_consider_simul = 3

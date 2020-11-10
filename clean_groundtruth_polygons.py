@@ -1,4 +1,3 @@
-
 import numpy as np
 import rasterio
 import matplotlib.pyplot as plt
@@ -10,22 +9,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from matplotlib import colors
 from matplotlib.ticker import FixedLocator, IndexLocator
-
-
-def load_edwin_polygons():
-
-    poly_file = '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/points_for_vt_testing/points_from_edwin.geojson'
-    poly = gpd.read_file(poly_file).to_crs('EPSG:32637')
-
-    irrig_polys = poly[poly['Name'] == 'I'] #['geometry'].tolist()
-    possible_irrig_polys = poly[poly['Name'] == 'I-N'] #['geometry'].tolist()
-    non_irrig_polys = poly[poly['Name'] == 'N'] #['geometry'].tolist()
-
-    return irrig_polys, possible_irrig_polys, non_irrig_polys
+from dl_training_main import get_args
 
 
 def cluster_and_plot_polys(ix, polys,  poly_file,  evi_src, chirps_src, n_kmeans_clusters, n_polys_to_consider_simul):
-
 
     evi_meta = evi_src.meta
     evi_polys = polys.to_crs(evi_meta['crs'])
@@ -51,8 +38,6 @@ def cluster_and_plot_polys(ix, polys,  poly_file,  evi_src, chirps_src, n_kmeans
         return False, _
 
 
-
-
     print('Collect valid pixels')
     valid_pixel_ts = masked_img[valid_evi_pixels]
     valid_chirps_ts = chirps_img[valid_chirps_pixels]
@@ -76,7 +61,6 @@ def cluster_and_plot_polys(ix, polys,  poly_file,  evi_src, chirps_src, n_kmeans
     cluster_centers_ts = pca.inverse_transform(cluster_centers)
 
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(14, 6))
-    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
     ax2 = axes[0].twinx()
 
     colors_xkcd = ['very dark purple', "windows blue", "amber", "greyish",
@@ -150,12 +134,13 @@ def cluster_and_plot_polys(ix, polys,  poly_file,  evi_src, chirps_src, n_kmeans
     return True, valid_pixels_map
 
 
-def load_evi_and_chirps_pixel_timeseries(poly_file, full_region, cropped_region):
+def load_evi_and_chirps_pixel_timeseries(args, poly_file, full_region, cropped_region):
 
-    evi_in_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/modis/stacked_and_cropped/utm_projection/{cropped_region}_evi_250m_interp_smoothed_reproj.tif'
-    # evi_in_file = '/Volumes/sel_external/ethiopia_vegetation_detection/imagery/ethiopia/sentinel/overlapping_with_visual_truth/clipped_extent_edwin_polys_east_37PEM_infilled.tif'
+    evi_in_file = f'{args.base_dir}/imagery/{full_region}/modis/stacked_and_cropped/utm_projection/' \
+                  f'{cropped_region}_evi_250m_interp_smoothed_reproj.tif'
 
-    chirps_in_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/chirps/resampled_nn/{cropped_region}_chirps_2017_2020_resampled_250m_modis_dates_shifted_mm.tif'
+    chirps_in_file = f'{args.base_dir}/chirps/resampled_nn/' \
+                     f'{cropped_region}_chirps_2017_2020_resampled_250m_modis_dates_shifted_mm.tif'
 
     print('Load EVI + Mask')
     evi_src = rasterio.open(evi_in_file, 'r')
@@ -168,7 +153,7 @@ def load_evi_and_chirps_pixel_timeseries(poly_file, full_region, cropped_region)
 
     polys = polys[(polys['geometry']).area/10000 > min_ha]
 
-    n_polys_to_consider_simul = 3
+    n_polys_to_consider_simul = 1
 
     print(f'Number of polygons in shapefile: {len(polys)}')
 
@@ -243,17 +228,20 @@ def load_evi_and_chirps_pixel_timeseries(poly_file, full_region, cropped_region)
     evi_meta['nodata'] = -3000
 
 
-    out_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/{full_region}/rasters/{file_name}_min{min_ha}ha_clusterbypolygon.tif'
+    out_file =f'{args.base_dir}/groundtruth/{full_region}/rasters/{file_name}_min{min_ha}ha_clusterbypolygon.tif'
 
     with rasterio.open(out_file, 'w', **evi_meta) as dest:
         dest.write(valid_pixel_map_for_export)
 
 if __name__ == '__main__':
+    '''
+    File for cleaning ground truth polygons and saving the outout as rasters
+    '''
+
+    args = get_args()
 
     full_region = 'ethiopia'
     cropped_region = 'amhara'
 
-
-    poly_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/sentinel_modis_testing/polygons/edwin_polys_32637.geojson'
-
-    load_evi_and_chirps_pixel_timeseries(poly_file, full_region, cropped_region)
+    poly_file = f'{args.base_dir}/groundtruth/ethiopia/polygons/amhara_irrig.geojson'
+    load_evi_and_chirps_pixel_timeseries(args, poly_file, full_region, cropped_region)

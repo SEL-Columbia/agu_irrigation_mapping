@@ -1,64 +1,78 @@
 import numpy as np
 import rasterio
-import matplotlib.pyplot as plt
-import geopandas as gpd
-from rasterio.mask import mask
-import copy
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix
-from sklearn.utils import shuffle
 import pandas as pd
-import seaborn as sns
 import tensorflow as tf
-import csv
 
 class DataGenerator():
     'This selects and prepares training and testing data'
-    def __init__(self, columns_to_use, dir_time):
+    def __init__(self, args, columns_to_use, dir_time):
 
         self.batch_size = 64
 
-        self.input_tif = '/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{}/stacked_images_for_classification/' \
-                         '{}_srtm_evi_ndwi_amap.tif'
+        self.input_tif = '{}/imagery/{}/stacked_images_for_classification/' \
+                         '{}_srtm_evi_ndwi.tif'
         self.pixels_within_shapefile_dict = {}
 
         catalonia_irrig_array, catalonia_noirrig_array, fresno_irrig_array, fresno_noirrig_array, \
-        amhara_irrig_array, amhara_noirrig_array, uganda_irrig_array, uganda_noirrig_array = self.return_selected_pixels_for_training()
+        amhara_irrig_array, amhara_noirrig_array, uganda_irrig_array, uganda_noirrig_array = \
+            self.return_selected_pixels_for_training(args)
 
         print('Load Amhara')
         amhara_irrig_valid_pixels, amhara_noirrig_valid_pixels, amhara_standard_array = \
-            self.return_pixel_data('ethiopia', 'amhara', amhara_irrig_array, amhara_noirrig_array, columns_to_use)
+            self.return_pixel_data(args, 'ethiopia', 'amhara', amhara_irrig_array,
+                                   amhara_noirrig_array, columns_to_use)
 
         print('Load Catalonia')
         catalonia_irrig_valid_pixels, catalonia_noirrig_valid_pixels, catalonia_standard_array = \
-            self.return_pixel_data('catalonia', 'catalonia', catalonia_irrig_array, catalonia_noirrig_array, columns_to_use)
+            self.return_pixel_data(args,'catalonia', 'catalonia', catalonia_irrig_array,
+                                   catalonia_noirrig_array, columns_to_use)
 
         print('Load Fresno')
         fresno_irrig_valid_pixels, fresno_noirrig_valid_pixels, fresno_standard_array = \
-            self.return_pixel_data('california', 'fresno', fresno_irrig_array, fresno_noirrig_array, columns_to_use)
+            self.return_pixel_data(args,'california', 'fresno', fresno_irrig_array,
+                                   fresno_noirrig_array, columns_to_use)
 
         # print('Load Uganda')
         # uganda_irrig_valid_pixels, uganda_noirrig_valid_pixels, uganda_standard_array = \
-        #     self.return_pixel_data('uganda', 'uganda', uganda_irrig_array, uganda_noirrig_array, columns_to_use)
+        #     self.return_pixel_data(args, 'uganda', 'uganda', uganda_irrig_array, uganda_noirrig_array, columns_to_use)
 
-        train_val_amhara_irrig_array, self.test_amhara_irrig_array = train_test_split(amhara_irrig_valid_pixels, test_size=0.1)
-        self.train_amhara_irrig_array, self.val_amhara_irrig_array = train_test_split(train_val_amhara_irrig_array, test_size=0.2)
+        random_state = 11
+        train_val_amhara_irrig_array, self.test_amhara_irrig_array = train_test_split(amhara_irrig_valid_pixels,
+                                                                                      test_size=0.1,
+                                                                                      random_state=random_state)
+        self.train_amhara_irrig_array, self.val_amhara_irrig_array = train_test_split(train_val_amhara_irrig_array,
+                                                                                      test_size=0.2)
 
-        train_val_amhara_noirrig_array, self.test_amhara_noirrig_array = train_test_split(amhara_noirrig_valid_pixels, test_size=0.1)
-        self.train_amhara_noirrig_array, self.val_amhara_noirrig_array = train_test_split(train_val_amhara_noirrig_array, test_size=0.2)
+        train_val_amhara_noirrig_array, self.test_amhara_noirrig_array = train_test_split(amhara_noirrig_valid_pixels,
+                                                                                          test_size=0.1,
+                                                                                          random_state=random_state)
+        self.train_amhara_noirrig_array, self.val_amhara_noirrig_array = train_test_split(train_val_amhara_noirrig_array,
+                                                                                          test_size=0.2)
 
-        train_val_catalonia_irrig_array, self.test_catalonia_irrig_array = train_test_split(catalonia_irrig_valid_pixels, test_size=0.1)
-        self.train_catalonia_irrig_array, self.val_catalonia_irrig_array = train_test_split(train_val_catalonia_irrig_array, test_size=0.2)
+        train_val_catalonia_irrig_array, self.test_catalonia_irrig_array = train_test_split(catalonia_irrig_valid_pixels,
+                                                                                            test_size=0.1,
+                                                                                            random_state=random_state)
+        self.train_catalonia_irrig_array, self.val_catalonia_irrig_array = train_test_split(train_val_catalonia_irrig_array,
+                                                                                            test_size=0.2)
 
-        train_val_catalonia_noirrig_array, self.test_catalonia_noirrig_array = train_test_split(catalonia_noirrig_valid_pixels, test_size=0.1)
-        self.train_catalonia_noirrig_array, self.val_catalonia_noirrig_array = train_test_split(train_val_catalonia_noirrig_array, test_size=0.2)
+        train_val_catalonia_noirrig_array, self.test_catalonia_noirrig_array = train_test_split(catalonia_noirrig_valid_pixels,
+                                                                                                test_size=0.1,
+                                                                                                random_state=random_state)
+        self.train_catalonia_noirrig_array, self.val_catalonia_noirrig_array = train_test_split(train_val_catalonia_noirrig_array,
+                                                                                                test_size=0.2)
 
-        train_val_fresno_irrig_array, self.test_fresno_irrig_array = train_test_split(fresno_irrig_valid_pixels, test_size=0.1)
-        self.train_fresno_irrig_array,  self.val_fresno_irrig_array = train_test_split(train_val_fresno_irrig_array, test_size=0.2)
+        train_val_fresno_irrig_array, self.test_fresno_irrig_array = train_test_split(fresno_irrig_valid_pixels,
+                                                                                      test_size=0.1,
+                                                                                      random_state=random_state)
+        self.train_fresno_irrig_array,  self.val_fresno_irrig_array = train_test_split(train_val_fresno_irrig_array,
+                                                                                       test_size=0.2)
 
-        train_val_fresno_noirrig_array, self.test_fresno_noirrig_array = train_test_split(fresno_noirrig_valid_pixels, test_size=0.1)
-        self.train_fresno_noirrig_array, self.val_fresno_noirrig_array = train_test_split(train_val_fresno_noirrig_array, test_size=0.2)
+        train_val_fresno_noirrig_array, self.test_fresno_noirrig_array = train_test_split(fresno_noirrig_valid_pixels,
+                                                                                          test_size=0.1,
+                                                                                          random_state=random_state)
+        self.train_fresno_noirrig_array, self.val_fresno_noirrig_array = train_test_split(train_val_fresno_noirrig_array,
+                                                                                          test_size=0.2)
 
         # Shuffle
         np.random.shuffle(self.train_amhara_irrig_array)
@@ -124,20 +138,20 @@ class DataGenerator():
                                     'amhara_noirrig_vt': amhara_noirrig_array
                                     }
 
-        self.save_norm_file = True
+        self.save_norm_file = False
         if self.save_norm_file:
             dict_for_saving = {}
             for k, v in self.standard_array_dict.items():
                 dict_for_saving[k] = v.tolist()
             out_df = pd.DataFrame.from_dict(dict_for_saving, orient='columns')
-            out_df.to_csv(f'files_for_prediction/normalization_arrays/{dir_time}.csv')
+            out_df.to_csv(f'{args.base_dir}/pretrained_model_files/normalizations/{dir_time}.csv')
 
-    def return_pixel_data(self, full_region, cropped_region, irrig_raster, noirrig_raster, columns_to_use):
+    def return_pixel_data(self, args, full_region, cropped_region, irrig_raster, noirrig_raster, columns_to_use):
         # For return_polygon_pixels, see old_code.py
 
-        input_tif = self.input_tif.format(full_region, cropped_region)
+        input_tif = self.input_tif.format(args.base_dir, full_region, cropped_region)
 
-        lulc_map = self.load_lulc_pixels(cropped_region)
+        lulc_map = self.load_lulc_pixels(args, cropped_region)
 
 
         with rasterio.open(input_tif, 'r') as src:
@@ -177,8 +191,8 @@ class DataGenerator():
 
         return irrig_ts_flat, nonirrig_ts_flat, standard_array
 
-    def load_lulc_pixels(self, cropped_region):
-        in_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/copernicus_lc_maps/{cropped_region}_2018_250m_utm.tif'
+    def load_lulc_pixels(self, args, cropped_region):
+        in_file = f'{args.base_dir}/copernicus_lc_maps/{cropped_region}_2018_250m_utm.tif'
 
         with rasterio.open(in_file, 'r') as src:
             lulc_map = src.read()
@@ -266,9 +280,9 @@ class DataGenerator():
 
         return val_irrig_ds, val_noirrig_ds
 
-    def find_valid_pixels_srtm_maxmin(self, full_region, cropped_region):
+    def find_valid_pixels_srtm_maxmin(self, args, full_region, cropped_region):
 
-        input_tif = self.input_tif.format(full_region, cropped_region)
+        input_tif = self.input_tif.format(args.base_dir, full_region, cropped_region)
 
         with rasterio.open(input_tif, 'r') as src:
             img = src.read()
@@ -283,45 +297,48 @@ class DataGenerator():
 
         return valid_pixel_map
 
-    def return_selected_pixels_for_training(self):
+    def return_selected_pixels_for_training(self, args):
         catalonia_irrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/catalonia/rasters/catalonia_irrig_all_min_10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/catalonia/rasters/catalonia_irrig_all_min_10ha_clusterbypolygon.tif',
         ]
 
         catalonia_noirrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/catalonia/rasters/catalonia_noirrig_min_10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/catalonia/rasters/catalonia_noirrig_min_10ha_clusterbypolygon.tif',
         ]
 
         fresno_irrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/california/rasters/fresno_irrig_min_10ha_nclusters_5.tif'
+            f'{args.base_dir}/groundtruth/california/rasters/fresno_irrig_min_10ha_nclusters_5.tif'
         ]
 
         fresno_noirrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/california/rasters/fresno_noirrig_min_10ha_nclusters_5.tif'
+            f'{args.base_dir}/groundtruth/california/rasters/fresno_noirrig_min_10ha_nclusters_5.tif'
         ]
 
         amhara_irrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/tana_irrig_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_irrig_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/koga_irrig_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_EA_polys_irrig_from_irrig_min_10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_EA_polys_irrig_from_potirrig_min_10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/tana_irrig_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_irrig_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/koga_irrig_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_EA_polys_irrig_from_irrig_min_10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_EA_polys_irrig_from_potirrig_min_10ha_clusterbypolygon.tif',
 
         ]
         amhara_noirrig_file_names = [
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/tana_noirrig_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_noirrig_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_noirrig_extra_min10ha_clusterbypolygon.tif',
-            '/Volumes/sel_external/ethiopia_vegetation_detection/groundtruth/ethiopia/rasters/amhara_EA_polys_noirrig_from_noirrig_min_10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/tana_noirrig_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_noirrig_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_noirrig_extra_min10ha_clusterbypolygon.tif',
+            f'{args.base_dir}/groundtruth/ethiopia/rasters/amhara_EA_polys_noirrig_from_noirrig_min_10ha_clusterbypolygon.tif',
         ]
 
-        catalonia_irrig_array, catalonia_noirrig_array = self.load_valid_pixel_rasters(catalonia_irrig_file_names,
+        catalonia_irrig_array, catalonia_noirrig_array = self.load_valid_pixel_rasters(args,
+                                                                                       catalonia_irrig_file_names,
                                                                                        catalonia_noirrig_file_names,
                                                                                        'catalonia', 'catalonia')
-        fresno_irrig_array, fresno_noirrig_array = self.load_valid_pixel_rasters(fresno_irrig_file_names,
+        fresno_irrig_array, fresno_noirrig_array = self.load_valid_pixel_rasters(args,
+                                                                                 fresno_irrig_file_names,
                                                                                  fresno_noirrig_file_names,
                                                                                  'california', 'fresno')
-        amhara_irrig_array, amhara_noirrig_array = self.load_valid_pixel_rasters(amhara_irrig_file_names,
+        amhara_irrig_array, amhara_noirrig_array = self.load_valid_pixel_rasters(args,
+                                                                                 amhara_irrig_file_names,
                                                                                  amhara_noirrig_file_names,
                                                                                  'ethiopia', 'amhara')
 
@@ -333,7 +350,7 @@ class DataGenerator():
         return catalonia_irrig_array, catalonia_noirrig_array, fresno_irrig_array, fresno_noirrig_array, \
                amhara_irrig_array, amhara_noirrig_array, uganda_irrig_array, uganda_noirrig_array
 
-    def load_valid_pixel_rasters(self, irrig_file_names, noirrig_file_names, full_region, cropped_region):
+    def load_valid_pixel_rasters(self, args, irrig_file_names, noirrig_file_names, full_region, cropped_region):
 
         irrig_arrays = []
         noirrig_arrays = []
@@ -345,8 +362,8 @@ class DataGenerator():
             noirrig_arrays.append(rasterio.open(file, 'r').read())
 
         # Take valid pixel maps based on srtm + max-min EVI ratio
-        valid_pixel_map = self.find_valid_pixels_srtm_maxmin(full_region, cropped_region)
-        valid_pixels_lulc =  self.load_lulc_pixels(cropped_region)
+        valid_pixel_map = self.find_valid_pixels_srtm_maxmin(args, full_region, cropped_region)
+        valid_pixels_lulc =  self.load_lulc_pixels(args, cropped_region)
 
         irrig_array_out = np.max(np.stack(irrig_arrays, axis=0), axis=0)[0] * valid_pixel_map * valid_pixels_lulc
         nonirrig_array_out = np.max(np.stack(noirrig_arrays, axis=0), axis=0)[0] * valid_pixel_map * valid_pixels_lulc
@@ -354,7 +371,7 @@ class DataGenerator():
 
         return irrig_array_out, nonirrig_array_out
 
-    def return_pixels_for_map_prediction(self, cropped_region, columns_to_use):
+    def return_pixels_for_map_prediction(self, args, cropped_region, columns_to_use):
 
         if cropped_region == 'amhara':
             full_region = 'ethiopia'
@@ -365,15 +382,15 @@ class DataGenerator():
         else:
             full_region = 'california'
 
-        map_file = self.input_tif.format(full_region, cropped_region)
+        map_file = self.input_tif.format(args.base_dir, full_region, cropped_region)
 
         with rasterio.open(map_file, 'r') as src:
             img = src.read()
 
         img = np.transpose(img, (1,2,0))
 
-        valid_lulc_pixels = self.load_lulc_pixels(cropped_region)
-        valid_srtm_maxmin_pixels = self.find_valid_pixels_srtm_maxmin(full_region, cropped_region)
+        valid_lulc_pixels = self.load_lulc_pixels(args, cropped_region)
+        valid_srtm_maxmin_pixels = self.find_valid_pixels_srtm_maxmin(args, full_region, cropped_region)
 
         # Find valid pixels
         valid_pixel_map = (~(np.isnan(img).any(axis=-1)) * valid_lulc_pixels * valid_srtm_maxmin_pixels)
@@ -384,9 +401,6 @@ class DataGenerator():
 
         # Standardize
         standard_array = self.standard_array_dict[f'{cropped_region}_standard_array']
-
-        # standard_array = standard_array[..., columns_to_use[0]]
-
 
         valid_pixels_for_pred = (valid_pixels_for_pred - standard_array[0]) / standard_array[1]
 

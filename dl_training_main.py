@@ -13,7 +13,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 from matplotlib import colors
 from tensorflow.keras.models import load_model
-
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 def get_args():
     parser = argparse.ArgumentParser(
@@ -73,16 +74,11 @@ def train_step(train_model, features, true_labels, epoch, summary_string, optimi
     with tf.GradientTape() as tape:
         # training=True is only needed if there are layers with different
         # behavior during training versus inference (e.g. Dropout).
-        # features = features[..., tf.newaxis]
-        # true_labels = true_labels[..., tf.newaxis]
-
 
         predictions = train_model(features, training=True)
         predictions = tf.squeeze(predictions, axis=1)
 
         loss = tf.keras.losses.binary_crossentropy(true_labels, predictions)
-
-
 
     gradients = tape.gradient(loss, train_model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, train_model.trainable_variables))
@@ -90,63 +86,14 @@ def train_step(train_model, features, true_labels, epoch, summary_string, optimi
     TP, TN, FP, FN = calculate_metrics(predictions, true_labels, epoch, summary_string)
 
 
-def predict_over_uga(t_region, model, generator):
-
-    valid_pixels_ds, valid_pixel_indices = generator.return_pixels_for_map_prediction(t_region)
-
-    colors_xkcd = ['cobalt', 'very dark purple',  'amber',
-                   'faded green', 'windows blue',  'terracotta',  'grape',
-                   'salmon pink',  'greyish', 'dark turquoise', 'pastel blue'
-                   ]
-
-    # sns.set_palette(sns.xkcd_palette(colors_xkcd))
-
-    cmap_im_all_preds = colors.ListedColormap(sns.xkcd_palette(colors_xkcd)[0:4])
-    bounds_all_preds = np.arange(start=-2.5, stop=2.5, step=1)
-
-    preds_list = []
-
-    uga_map_file = '/Volumes/sel_external/ethiopia_vegetation_detection/imagery/uganda/derived_imagery/' \
-                   'updated_rainfall_no_averaging/evi_annual_corrcoeff_uganda_250m.tif'
-
-    with rasterio.open(uga_map_file, 'r') as src:
-        uga_img = src.read()[0]
-        pixels_within_shapefile = np.where(~np.isnan(uga_img))
-
-    print(f'Predict over map for region: {t_region}')
-    for features in valid_pixels_ds:
-        predictions = model(features, training=False)
-        preds_list.extend(predictions)
-
-    preds_array = np.array(preds_list)
-
-    preds_array = np.argmax(preds_array, axis=1)
-
-    preds_map = np.full(uga_img.shape, -2)
-    preds_map[pixels_within_shapefile] = -1
-
-    preds_map[valid_pixel_indices] = preds_array
-
-    fig, ax = plt.subplots()
-    divider0 = make_axes_locatable(ax)
-    cax0 = divider0.append_axes('right', size='5%', pad=0.15)
-
-    im0 = ax.imshow(preds_map, interpolation='nearest', origin='upper', cmap=cmap_im_all_preds)
-    cbar = fig.colorbar(im0, cax=cax0, orientation='vertical', boundaries=bounds_all_preds, ticks=range(-2, 3))
-    cbar.ax.set_yticklabels(['N/A', 'No\nPrediction', 'Predicted\nNo Irrigation', 'Predicted\nIrrigation'])
-
-    fig.suptitle(f'UGA Predictions')
-    plt.tight_layout(pad=1.08, h_pad=1.16, w_pad=None, rect=None)
-    plt.show()
-
-def predict_over_map(ix, t_region, model, generator, test_results, columns_to_use):
+def predict_over_map(args, ix, t_region, model, generator, test_results, columns_to_use):
 
     if t_region == 'amhara':
         truth = 'Visual'
     else:
         truth = 'Ground'
 
-    valid_pixels_ds, valid_pixel_indices = generator.return_pixels_for_map_prediction(t_region, columns_to_use)
+    valid_pixels_ds, valid_pixel_indices = generator.return_pixels_for_map_prediction(args, t_region, columns_to_use)
     visual_truth_arrays = generator.visual_truth_arrays
     pixels_within_shapefile_dict = generator.pixels_within_shapefile_dict
 
@@ -170,11 +117,12 @@ def predict_over_map(ix, t_region, model, generator, test_results, columns_to_us
     print(f'Predict over map for region: {t_region}')
     for features in valid_pixels_ds:
         predictions = model(features, training = False)
+        predictions = tf.squeeze(predictions, axis=1)
         preds_list.extend(predictions)
 
     preds_array = np.array(preds_list)
-
     preds_array = np.argmax(preds_array, axis=1)
+
 
 
     irrig_vt_map = visual_truth_arrays[f'{t_region}_irrig_vt']
@@ -184,7 +132,9 @@ def predict_over_map(ix, t_region, model, generator, test_results, columns_to_us
     preds_map = np.full(irrig_vt_map.shape, -2)
     preds_map[pixels_within_shapefile_dict[t_region]] = -1
 
-    preds_map[valid_pixel_indices] = np.argmax(preds_array, axis=1)
+
+
+    preds_map[valid_pixel_indices] = preds_array
 
     fig, ax = plt.subplots(1,2, figsize = (15,6))
     divider0 = make_axes_locatable(ax[0])
@@ -215,12 +165,30 @@ def predict_over_map(ix, t_region, model, generator, test_results, columns_to_us
                               'False\nPositive', 'True\nPositive'])
 
     region_results = test_results[ix]
-    ax[0].set_title(f'Inference\n')
+    # ax[0].set_title(f'Inference\n')
     ax[1].set_title(f'Comparison with {truth} Truth\n'
-                    f'Test set accuracy, irrigated samples: {region_results[0][0]:.2f} ({region_results[0][1]}/{region_results[0][2]})\n'
-                    f'Test set accuracy, non-irrigated samples: {region_results[1][0]:.2f} ({region_results[1][1]}/{region_results[1][2]})')
+                    f'Test set accuracy, irrigated samples: {region_results[0][0]:.3f} ({region_results[0][1]}/{region_results[0][2]})\n'
+                    f'Test set accuracy, non-irrigated samples: {region_results[1][0]:.3f} ({region_results[1][1]}/{region_results[1][2]})')
+
+    ax[0].set_title(f'Test set accuracy, irrigated samples: {region_results[0][0]:.3f} ({region_results[0][1]}/{region_results[0][2]})\n'
+                    f'Test set accuracy, non-irrigated samples: {region_results[1][0]:.3f} ({region_results[1][1]}/{region_results[1][2]})')
+
     fig.suptitle(f'{t_region.capitalize()}')
+
+    # Add scale bar
+    fontprops = fm.FontProperties(size=12)
+    bar_width = 200
+    scalebar = AnchoredSizeBar(ax[0].transData,
+                               bar_width, '50km', 'lower left',
+                               pad=0.3,
+                               color='Black',
+                               frameon=True,
+                               size_vertical=2,
+                               fontproperties=fontprops)
+    ax[0].add_artist(scalebar)
+
     plt.tight_layout(pad=1.08, h_pad=1.16, w_pad=None, rect=None)
+    plt.savefig(f'output_files/saved_figures/{t_region}_preds.png', dpi=200)
     plt.show()
 
 
@@ -290,11 +258,13 @@ def update_model_weights(irrig_acc_list, noirrig_acc_list, train_model, best_mod
 
 if __name__ == '__main__':
 
+    args = get_args()
+
     dir_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
     train_regions = ['amhara', 'catalonia', 'fresno']
     val_regions = ['amhara', 'catalonia', 'fresno']
-    test_regions = ['amhara']#, 'catalonia', 'fresno']
+    test_regions = [ 'catalonia']
 
     acc_results_dict = {}
     for v_region in val_regions:
@@ -322,19 +292,19 @@ if __name__ == '__main__':
     print([(i, columns[i]) for i in range(len(columns))])
 
     print('Initializing data generator')
-    generator = DataGenerator(columns_to_use, dir_time)
+    generator = DataGenerator(args, columns_to_use, dir_time)
 
 
     # Load pretrained model
-    load_pretrained_model = False
+    load_pretrained_model = True
     if load_pretrained_model:
         print('Loading pretrained model')
-        model_dir = '20201028-163308'
-        train_model =load_model(f'files_for_prediction/models/{model_dir}')
-        best_model =load_model(f'files_for_prediction/models/{model_dir}')
+        model_dir = 'best_trained_all_regions'
+        train_model = load_model(f'{args.base_dir}/pretrained_model_files/models/{model_dir}')
+        best_model  = load_model(f'{args.base_dir}/pretrained_model_files/models/{model_dir}')
 
     else:
-        print()
+        print('Train new model')
         # Create two models in order to update weights accoringly
         train_model = DeepClassifier()
         best_model  = DeepClassifier()
@@ -343,7 +313,6 @@ if __name__ == '__main__':
     train_loss = tf.keras.metrics.Mean(name='train_loss')
 
     # Define training loss objects
-
     log_dir = "tensorboard_logs/" + dir_time
     summary_writer = tf.summary.create_file_writer(log_dir)
 
@@ -351,49 +320,51 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
     num_epochs = 20
+    epoch = 0
 
-    for epoch in range(num_epochs):
-        shuffle(train_regions)
-        for t_region in train_regions:
-            # Update the training region + find number of iterations to train on all irrig/non-irrig data
-            print(f'Training on region {t_region}')
-            generator.update_region(t_region)
+    train = False
+    if train:
+        for epoch in range(num_epochs):
+            shuffle(train_regions)
+            for t_region in train_regions:
+                # Update the training region + find number of iterations to train on all irrig/non-irrig data
+                print(f'Training on region {t_region}')
+                generator.update_region(t_region)
 
-            optimizer.learning_rate.assign(lr * generator.training_rate_dict[f'{t_region}'])
+                optimizer.learning_rate.assign(lr * generator.training_rate_dict[f'{t_region}'])
 
-            count = 0
+                count = 0
 
-            for iter in range(generator.num_iters_per_region):
-                train_ds = generator.take_new_batch_for_iter(iter)
-                for features, true_labels in train_ds:
-                    count +=1
-                    summary_string = f'training_{t_region}'
-                    train_step(train_model, features, true_labels, epoch, summary_string, optimizer)
+                for iter in range(generator.num_iters_per_region):
+                    train_ds = generator.take_new_batch_for_iter(iter)
+                    for features, true_labels in train_ds:
+                        count +=1
+                        summary_string = f'training_{t_region}'
+                        train_step(train_model, features, true_labels, epoch, summary_string, optimizer)
 
-            print(count)
+                print(count)
 
-            # Find validation accuracy
-            print(f'Validating on remaining regions')
+                # Find validation accuracy
+                print(f'Validating on remaining regions')
 
-            irrig_acc_list = []
-            noirrig_acc_list = []
+                irrig_acc_list = []
+                noirrig_acc_list = []
 
-            # v_regions = [v for v in val_regions if v != t_region]
-            for v_region in val_regions:
+                # v_regions = [v for v in val_regions if v != t_region]
+                for v_region in val_regions:
 
-                val_irrig_ds, val_noirrig_ds = generator.return_val_or_test_data('val', v_region)
+                    val_irrig_ds, val_noirrig_ds = generator.return_val_or_test_data('val', v_region)
 
 
-                print(f'Validating irrigated pixels, region: {v_region}')
-                irrig_acc, irrig_true, irrig_total = model_evaluation(train_model, val_irrig_ds, region=v_region, class_type='irrig')
-                irrig_acc_list.append((irrig_acc, irrig_total))
-                print(f'Validating nonirrigated pixels, region: {v_region}\n')
-                noirrig_acc, noirrig_true, noirrig_total = model_evaluation(train_model, val_noirrig_ds, region=v_region, class_type='no_irrig')
-                noirrig_acc_list.append((noirrig_acc, noirrig_total))
+                    print(f'Validating irrigated pixels, region: {v_region}')
+                    irrig_acc, irrig_true, irrig_total = model_evaluation(train_model, val_irrig_ds, region=v_region, class_type='irrig')
+                    irrig_acc_list.append((irrig_acc, irrig_total))
+                    print(f'Validating nonirrigated pixels, region: {v_region}\n')
+                    noirrig_acc, noirrig_true, noirrig_total = model_evaluation(train_model, val_noirrig_ds, region=v_region, class_type='no_irrig')
+                    noirrig_acc_list.append((noirrig_acc, noirrig_total))
 
-            train_model, best_model, acc_results_dict = update_model_weights(irrig_acc_list, noirrig_acc_list,
-                                                       train_model, best_model, acc_results_dict, val_regions)
-
+                train_model, best_model, acc_results_dict = update_model_weights(irrig_acc_list, noirrig_acc_list,
+                                                           train_model, best_model, acc_results_dict, val_regions)
 
 
     print(acc_results_dict)
@@ -415,13 +386,13 @@ if __name__ == '__main__':
         print(f'Non-irrigated test set, region {t_region}, accuracy: {noirrig_acc} ({noirrig_true}/{noirrig_total})')
 
         test_results.append(((irrig_acc, irrig_true, irrig_total), (noirrig_acc, noirrig_true, noirrig_total)))
-    #
-    # Predict over map
-    # for ix, t_region in enumerate(test_regions):
-    #     predict_over_map(ix, t_region, best_model, generator, test_results, columns_to_use)
-    #
-    save_model = True
+
+    ## Predict over map
+    for ix, t_region in enumerate(test_regions):
+        print(t_region)
+        predict_over_map(args, ix, t_region, best_model, generator, test_results, columns_to_use)
+
+
+    save_model = False
     if save_model:
-        best_model.save(f'files_for_prediction/models/{dir_time}')
-    #
-    # # predict_over_uga('uganda', best_model, generator)
+        best_model.save(f'{args.base_dir}/pretrained_model_files/models/{dir_time}')

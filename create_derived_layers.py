@@ -2,8 +2,9 @@ import numpy as np
 import rasterio
 from tqdm import tqdm
 import copy
+from dl_training_main import get_args
 
-def calculate_correlation_coefficient():
+def calculate_correlation_coefficient(args):
     '''
     Calculate correlation coefficient between an imagery and rainfall stacks. If calculating between EVI and rainfall,
     a shifted rainfall stack is loaded; if calculated between NDWI and rainfall, the actual rainfall timeseries
@@ -25,9 +26,9 @@ def calculate_correlation_coefficient():
         shift = 'shifted'
 
     # Define img + chirps filenames
-    img_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/modis/stacked_and_cropped/' \
+    img_file = f'{args.base_dir}/imagery/{full_region}/modis/stacked_and_cropped/' \
                f'utm_projection/{cropped_region}_{layer}_250m_interp_smoothed_reproj.tif'
-    chirps_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/chirps/resampled_nn/' \
+    chirps_file = f'{args.base_dir}/chirps/resampled_nn/' \
                   f'{cropped_region}_chirps_2017_2020_resampled_250m_modis_dates_{shift}_mm.tif'
 
     # Load
@@ -87,11 +88,9 @@ def calculate_correlation_coefficient():
     evi_annual_corrcoeff_map = np.transpose(evi_annual_corrcoeff_map, (2,0,1))
 
     # Save out
-    evi_chirps_corrcoef_out = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/' \
-                              f'derived_imagery/updated_rainfall_no_averaging/' \
+    evi_chirps_corrcoef_out =f'{args.base_dir}/imagery/{full_region}/derived_imagery/' \
                               f'{layer}_{shift}_chirps_corrcoeff_{cropped_region}_250m.tif'
-    annual_corrcoef_out =     f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/' \
-                              f'derived_imagery/updated_rainfall_no_averaging/' \
+    annual_corrcoef_out =     f'{args.base_dir}/imagery/{full_region}/derived_imagery/' \
                               f'{layer}_annual_corrcoeff_{cropped_region}_250m.tif'
 
     chirps_meta['count'] = 1
@@ -106,7 +105,7 @@ def calculate_correlation_coefficient():
 
 
 
-def calculate_layer_values_at_lowest_chirps_timesteps():
+def calculate_layer_values_at_lowest_chirps_timesteps(args):
     '''
     Calculates the layer value at the N timesteps with the lowest CHIRPS values. If calculating for EVI ,
     a shifted rainfall stack is loaded; if calculated for NDWI, the actual rainfall timeseries
@@ -119,7 +118,7 @@ def calculate_layer_values_at_lowest_chirps_timesteps():
 
     full_region = 'catalonia'
     cropped_region = 'catalonia'
-    layer = 'evi'
+    layer = 'ndwi'
 
     # Define num timesteps to consider
     num_timesteps_for_min_rainfall = [12, 24, 36]
@@ -131,9 +130,9 @@ def calculate_layer_values_at_lowest_chirps_timesteps():
         shift = 'shifted'
 
     # Load images
-    img_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/modis/stacked_and_cropped/' \
+    img_file = f'{args.base_dir}/imagery/{full_region}/modis/stacked_and_cropped/' \
                f'utm_projection/{cropped_region}_{layer}_250m_interp_smoothed_reproj.tif'
-    chirps_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/chirps/resampled_nn/' \
+    chirps_file = f'{args.base_dir}/chirps/resampled_nn/' \
                   f'{cropped_region}_chirps_2017_2020_resampled_250m_modis_dates_{shift}_mm.tif'
 
     with rasterio.open(img_file, 'r') as src:
@@ -182,12 +181,10 @@ def calculate_layer_values_at_lowest_chirps_timesteps():
     # Save out
     timestep_str = ''.join([f'{str(i)}_' for i in num_timesteps_for_min_rainfall])
 
-    mean_out_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/derived_imagery/' \
-            f'updated_rainfall_no_averaging/' \
+    mean_out_file = f'{args.base_dir}/imagery/{full_region}/derived_imagery/' \
             f'{layer}_mean_at_min_{timestep_str}{shift}_chirps_timesteps_{cropped_region}_250m.tif'
 
-    max_out_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/derived_imagery/' \
-            f'updated_rainfall_no_averaging/' \
+    max_out_file = f'{args.base_dir}/imagery/{full_region}/derived_imagery/' \
             f'{layer}_max_at_min_{timestep_str}{shift}_chirps_timesteps_{cropped_region}_250m.tif'
 
     evi_meta['count'] = len(num_timesteps_for_min_rainfall)
@@ -200,7 +197,7 @@ def calculate_layer_values_at_lowest_chirps_timesteps():
         dest.write(max_evi_at_min_rainfall_timesteps_map)
 
 
-def calculate_high_low_evi_ratio():
+def calculate_high_low_evi_ratio(args):
     '''
     Calculate the ratio of EVI from high-to-low percentiles.
 
@@ -213,7 +210,7 @@ def calculate_high_low_evi_ratio():
     cropped_region = 'fresno'
     layer = 'evi'
 
-    img_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/modis/stacked_and_cropped/'\
+    img_file = f'{args.base_dir}/imagery/{full_region}/modis/stacked_and_cropped/'\
                f'utm_projection/{cropped_region}_{layer}_250m_interp_smoothed_reproj.tif'
 
     # Load image file
@@ -243,8 +240,8 @@ def calculate_high_low_evi_ratio():
         evi_max_min_ratio_map[valid_pixels, i] = ratio
 
     # Write out
-    out_file = f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}/derived_imagery/' \
-               f'updated_rainfall_no_averaging/{layer}_max_min_ratio_at_percentiles_{cropped_region}_250m.tif'
+    out_file = f'{args.base_dir}/imagery/{full_region}/derived_imagery/' \
+               f'{layer}_max_min_ratio_at_percentiles_{cropped_region}_250m.tif'
 
     evi_meta['count'] = int(len(percentiles)/2)
     evi_meta['dtype'] = 'float32'
@@ -256,7 +253,7 @@ def calculate_high_low_evi_ratio():
         dest.write(evi_max_min_ratio_map)
 
 
-def stack_layers():
+def stack_layers(args):
     '''
     Load derived layers and stack them. User must specify the full_region, cropped_region to identify the
     area in question.
@@ -265,11 +262,11 @@ def stack_layers():
     '''
 
     # Define regions and folder
-    full_region = 'ethiopia'
-    cropped_region = 'amhara'
+    full_region = 'catalonia'
+    cropped_region = 'catalonia'
 
-    full_region_folder =  f'/Volumes/sel_external/ethiopia_vegetation_detection/imagery/{full_region}'
-    derived_folder = f'{full_region_folder}/derived_imagery/updated_rainfall_no_averaging/'
+    full_region_folder =  f'{args.base_dir}/imagery/{full_region}'
+    derived_folder = f'{full_region_folder}/derived_imagery/'
 
     # Define derived layer files
     srtm_layer = f'{full_region_folder}/srtm/{cropped_region}_srtm_slope_250m_cropped_reproj.tif'
@@ -355,5 +352,9 @@ def stack_layers():
 
 
 if __name__ == '__main__':
-    calculate_layer_values_at_lowest_chirps_timesteps()
+    args = get_args()
+
+
+    calculate_layer_values_at_lowest_chirps_timesteps(args)
+    stack_layers(args)
 

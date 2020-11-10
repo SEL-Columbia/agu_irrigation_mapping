@@ -1,3 +1,6 @@
 __pycache__
 .idea/*
 .idea/
+files_for_prediction/*
+output_files/*
+tensorboard_logs/*

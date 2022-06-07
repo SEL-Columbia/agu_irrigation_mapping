@@ -4,3 +4,4 @@ __pycache__
 files_for_prediction/*
 output_files/*
 tensorboard_logs/*
+data_and_outputs

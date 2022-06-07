@@ -42,7 +42,7 @@ agu_irrigation_mapping
 
 ## Root Level Repository Description
 
-The `data_and_outputs/` folder is too large to include in this repository. It is instead made available [here](terry_phd_export/projects/ethiopia/agu_irrigation_mapping/data_and_outputs).  
+The `data_and_outputs/` folder is too large to include in this repository. It is instead made available [here](https://console.cloud.google.com/storage/browser/terry_phd_export/projects/ethiopia/agu_irrigation_mapping/data_and_outputs).  
 * Download this folder
   (~28.5 GB in size, so think about saving it to an external storage unit), and then point the `base_dir` field in
    `params.yaml` to the corresponding directory location. The storage bucket contains all the derived layers

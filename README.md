@@ -40,7 +40,7 @@ agu_irrigation_mapping
 │   ├── utils.py
 ```
 
-## Root Level Repository Description
+## Repository Description
 
 The `data_and_outputs/` folder is too large to include in this repository. It is instead made available [here](https://console.cloud.google.com/storage/browser/terry_phd_export/projects/ethiopia/agu_irrigation_mapping/data_and_outputs).  
 * Download this folder
